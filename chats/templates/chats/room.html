@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Chat room for "{{ room_name }}"
+{% endblock %}
+
+{% block content %}
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>💬 {{ room_name }}</h2>
+            <p>Welcome, {{ username }}!</p>
+        </div>
+
+        <div id="chat" class="chat-messages"></div>
+
+        <div id="chat-input" class="chat-input-container">
+            <input
+                id="chat-message-input"
+                type="text"
+                placeholder="Type your message..."
+                class="message-input"
+            >
+            <button id="chat-message-submit" class="send-button">
+                <i class="fas fa-location-arrow"></i>
+            </button>
+        </div>
+    </div>
+{% endblock %}
+
+{% block include_js %}
+    {{ room_name|json_script:"room_name" }}
+    {{ username|json_script:"username" }}
+{% endblock %}
+
+{% block domready %}
+
+// Extract room name and username from HTML elements
+const room_name = JSON.parse(
+    document.getElementById('room_name').textContent
+);
+const username = JSON.parse(
+    document.getElementById('username').textContent
+);
+
+// Create WebSocket connection to an established endpoint
+const url = `ws://${window.location.host}/ws/room/${room_name}/?username=${username}`;
+const chatSocket = new WebSocket(url);
+
+// Handle incoming messages
+chatSocket.onmessage = function(event) {
+    // Parse the received JSON data
+    const data = JSON.parse(event.data);
+    const chat = document.getElementById('chat');
+
+    // Format the timestamp
+    const dateOptions = { hour: 'numeric', minute: 'numeric' };
+    const datetime = new Date(data.datetime).toLocaleString('en', dateOptions);
+
+    // Determine if the user is the sender
+    const isOwnMessage = data.username === username;
+    const messageClass = isOwnMessage ? 'message-own' : 'message-other';
+
+    // Create and style the message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${messageClass} message-new`;
+    messageDiv.innerHTML = `<strong>${data.username}</strong>
+                            <span class="date"> ${datetime}</span><br>
+                            ${data.message}`;
+    
+    // Add message to chat and scroll to bottom
+    chat.appendChild(messageDiv);
+    chat.scrollTop = chat.scrollHeight;
+
+    // Remove the 'new message' animation class after 300ms
+    setTimeout(() => {
+        messageDiv.classList.remove('message-new');
+    }, 300);
+};
+
+// Handle WebSocket connection closure
+chatSocket.onclose = function(event) {
+    console.error('Chat socket closed unexpectedly');
+};
+
+// Add event listener to send messages on button click
+const input = document.getElementById('chat-message-input');
+const submitButton = document.getElementById('chat-message-submit');
+
+submitButton.addEventListener('click', function(event) {
+    const message = input.value.trim();
+    if (message) {
+        chatSocket.send(JSON.stringify({ 'message': message }));
+        input.value = ''; // Clear input field
+        input.focus();    // Maintain focus
+    }
+});
+
+// Handle "Enter" key press in input field
+input.addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent default behavior
+        submitButton.click();   // Trigger the button click
+    }
+});
+
+// Set initial focus to input field
+input.focus();
+
+{% endblock %}
