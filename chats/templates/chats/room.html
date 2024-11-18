@@ -11,8 +11,10 @@
             <p>Welcome, {{ username }}!</p>
         </div>
 
+        <!-- Chat messages container -->
         <div id="chat" class="chat-messages"></div>
 
+        <!-- Input container -->
         <div id="chat-input" class="chat-input-container">
             <input
                 id="chat-message-input"
@@ -42,68 +44,73 @@ const username = JSON.parse(
     document.getElementById('username').textContent
 );
 
-// Create WebSocket connection to an established endpoint
-const url = `ws://${window.location.host}/ws/room/${room_name}/?username=${username}`;
+// Create WebSocket connection
+const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+const url = `${protocol}${window.location.host}/ws/room/${room_name}/?username=${username}`;
 const chatSocket = new WebSocket(url);
 
 // Handle incoming messages
 chatSocket.onmessage = function(event) {
-    // Parse the received JSON data
     const data = JSON.parse(event.data);
     const chat = document.getElementById('chat');
 
-    // Format the timestamp
-    const dateOptions = { hour: 'numeric', minute: 'numeric' };
-    const datetime = new Date(data.datetime).toLocaleString('en', dateOptions);
+    // Validate and format the timestamp
+    let datetime = 'N/A';
+    if (data.datetime) {
+        const dateOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+        datetime = new Date(data.datetime).toLocaleTimeString('en-US', dateOptions);
+    }
 
     // Determine if the user is the sender
     const isOwnMessage = data.username === username;
     const messageClass = isOwnMessage ? 'message-own' : 'message-other';
 
-    // Create and style the message
+    // Create message div
     const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${messageClass} message-new`;
-    messageDiv.innerHTML = `<strong>${data.username}</strong>
-                            <span class="date"> ${datetime}</span><br>
-                            ${data.message}`;
-    
-    // Add message to chat and scroll to bottom
+    messageDiv.className = `message ${messageClass}`;
+
+    // Set the inner HTML with proper structure
+    messageDiv.innerHTML = `
+        <div class="message-header">
+            <strong>${data.username}</strong>
+            <span class="message-timestamp">${datetime}</span>
+        </div>
+        <div class="message-content">${data.message}</div>
+    `;
+
+    // Append the message and scroll to the bottom
     chat.appendChild(messageDiv);
     chat.scrollTop = chat.scrollHeight;
-
-    // Remove the 'new message' animation class after 300ms
-    setTimeout(() => {
-        messageDiv.classList.remove('message-new');
-    }, 300);
 };
 
-// Handle WebSocket connection closure
-chatSocket.onclose = function(event) {
+// Handle WebSocket closure
+chatSocket.onclose = function() {
     console.error('Chat socket closed unexpectedly');
 };
 
-// Add event listener to send messages on button click
+// Sending message on button click
 const input = document.getElementById('chat-message-input');
 const submitButton = document.getElementById('chat-message-submit');
 
-submitButton.addEventListener('click', function(event) {
+submitButton.addEventListener('click', () => {
     const message = input.value.trim();
     if (message) {
         chatSocket.send(JSON.stringify({ 'message': message }));
-        input.value = ''; // Clear input field
-        input.focus();    // Maintain focus
+        input.value = '';
+        input.focus();
     }
 });
 
-// Handle "Enter" key press in input field
-input.addEventListener('keypress', function(event) {
+// Handle Enter key press
+input.addEventListener('keypress', (event) => {
     if (event.key === 'Enter') {
-        event.preventDefault(); // Prevent default behavior
-        submitButton.click();   // Trigger the button click
+        event.preventDefault();
+        submitButton.click();
     }
 });
 
-// Set initial focus to input field
+// Set initial focus
 input.focus();
 
 {% endblock %}
+
